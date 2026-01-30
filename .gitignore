@@ -1,7 +1,4 @@
 desktop/node_modules/
 **/node_modules/
-data/
-**/data/
-vendor/
 .env
 .env.*
