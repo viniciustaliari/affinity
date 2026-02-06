@@ -1,5 +1,6 @@
 {
     "require": {
-        "catfan/medoo": "^2.2"
+        "catfan/medoo": "^2.2",
+        "cboden/ratchet": "^0.4.4"
     }
 }

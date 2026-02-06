@@ -1,0 +1,8 @@
+{
+    "name": "affinity/web",
+    "require": {
+        "php": "^8.2",
+        "cboden/ratchet": "^0.4.4",
+        "catfan/medoo": "^2.2"
+    }
+}
