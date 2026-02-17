@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/db.php';
+require_once __DIR__ . '/media_filename.php';
 header('Content-Type: application/json');
 
 $id_programa = $_POST['id_programa'] ?? null;
@@ -21,6 +22,7 @@ if ($file['error'] !== UPLOAD_ERR_OK) {
 
 $ext = pathinfo($file["name"], PATHINFO_EXTENSION);
 $nombreFinal = uniqid("vid_", true) . "." . $ext;
+$nombreOriginal = sanitizeClientMediaFileName((string)($file["name"] ?? ""), $nombreFinal);
 
 $rutaDestino = __DIR__ . '/../data/videos/' . $nombreFinal;
 
@@ -32,6 +34,7 @@ if (!move_uploaded_file($file["tmp_name"], $rutaDestino)) {
 /* Insert extendido (compatible hacia atrás) */
 $database->insert("video", [
     "nombre"      => $nombreFinal,
+    "nombre_original" => $nombreOriginal,
     "duracion"    => $duracion,
     "indice"      => $indice,
     "repeat"      => $repeat,

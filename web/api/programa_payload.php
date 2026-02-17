@@ -1,17 +1,18 @@
 <?php
 require __DIR__ . '/db.php';
 
+function resolveCategoriaFromContexto(string $contexto): string
+{
+    $database = $GLOBALS['database'] ?? null;
+    return getJsonCategoryFromContexto($contexto, $database);
+}
+
 function buildProgramaPayload(string $contexto): array
 {
-    $defaults = [
-        "imageDurationMs" => 5000,
-        "videoRepeat"     => 1
-    ];
-
     $contexto = trim($contexto);
     if ($contexto === "") {
         return [
-            "error" => "Missing or invalid 'contexto'. Example: ?contexto=standby"
+            "error" => "Missing or invalid 'contexto'. Example: ?contexto=1"
         ];
     }
 
@@ -29,6 +30,41 @@ function buildProgramaPayload(string $contexto): array
         ];
     }
 
+    return buildProgramaPayloadFromPrograma($programa, $contexto);
+}
+
+function buildProgramaPayloadByProgramId(int $programId): array
+{
+    if ($programId <= 0) {
+        return [
+            "error" => "Missing or invalid 'program_id'."
+        ];
+    }
+
+    $database = $GLOBALS['database'];
+    $programa = $database->get("programas", "*", [
+        "id" => $programId
+    ]);
+
+    if (!$programa) {
+        return [
+            "error" => "Program not found for program_id",
+            "program_id" => $programId
+        ];
+    }
+
+    $contexto = isset($programa["contexto"]) ? (string)$programa["contexto"] : "";
+    return buildProgramaPayloadFromPrograma($programa, $contexto);
+}
+
+function buildProgramaPayloadFromPrograma(array $programa, string $contexto): array
+{
+    $defaults = [
+        "imageDurationMs" => 5000,
+        "videoRepeat"     => 1
+    ];
+
+    $database = $GLOBALS['database'];
     $id = (int)$programa["id"];
 
     $imagenes = $database->select("imagenes", "*", [
@@ -42,8 +78,10 @@ function buildProgramaPayload(string $contexto): array
     $resultado = [
         "timestamp"   => (int) round(microtime(true) * 1000),
         "defaults"    => $defaults,
+        "programId"   => $id,
         "programName" => $programa["nombre"],
-        "category"    => $programa["category"] ?? $contexto,
+        "contexto"    => $contexto,
+        "category"    => resolveCategoriaFromContexto($contexto),
         "packageName" => $programa["packageName"] ?? "media",
         "images"      => [],
         "videos"      => []

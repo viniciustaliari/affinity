@@ -37,6 +37,10 @@ foreach ($videos as $vid) {
    3. BORRAR PROGRAMA
    (CASCADE borra las filas hijas)
 =================== */
+$database->delete("programa_paquetes", [
+    "id_programa" => $id_programa
+]);
+
 $database->delete("programas", [
     "id" => $id_programa
 ]);

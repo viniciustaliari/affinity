@@ -47,7 +47,7 @@ if (!$ctx) die("Falta ctx");
 
         <!-- ░ PROGRAMA ACTIVO ░ -->
         <div class="col-span-4 bg-white rounded-xl p-4 shadow-md">
-            <h3 class="font-bold text-lg text-blue-700">Programa publicitario activo</h3>
+            <h3 class="font-bold text-lg text-blue-700">Programa activo</h3>
             <p id="programaActivo" class="font-bold text-3xl pt-2 text-center text-gray-800">--</p>
         </div>
 

@@ -3,17 +3,13 @@ include_once './components/head.php';
 require_once './api/db.php';
 
 // PROGRAMAS ACTIVOS POR CONTEXTO
-$contextos = [
-    "Peso/Altura" => 1,
-    "Blood Pressure" => 2,
-    "Oxi" => 3,
-    "IMG" => 4,
-    "Todo" => 5
-];
+$contextos = function_exists('getContextosCanonicos')
+    ? getContextosCanonicos()
+    : [];
 
 $programasActivos = [];
 
-foreach ($contextos as $nombre => $ctxId) {
+foreach ($contextos as $ctxId => $nombre) {
     $programasActivos[$nombre] = $database->get("programas", "nombre", ["contexto" => $ctxId]);
 }
 
@@ -38,25 +34,12 @@ $estadoBD = $database ? "CONECTADO" : "ERROR";
             Ver informe detallado
         </h3>
 
-        <a href="/pages/informeDetallado.php?ctx=1"
+        <?php foreach ($contextos as $ctxId => $ctxNombre): ?>
+        <a href="/pages/informeDetallado.php?ctx=<?= (int)$ctxId ?>"
            class="flex items-center justify-center bg-white p-2 rounded-xl font-semibold hover:bg-orange-500 hover:text-white">
-            Peso/Altura
+            <?= htmlspecialchars(ucwords($ctxNombre)) ?>
         </a>
-
-        <a href="/pages/informeDetallado.php?ctx=3"
-           class="flex items-center justify-center bg-white p-2 rounded-xl font-semibold hover:bg-orange-500 hover:text-white">
-            OXI
-        </a>
-
-        <a href="/pages/informeDetallado.php?ctx=4"
-           class="flex items-center justify-center bg-white p-2 rounded-xl font-semibold hover:bg-orange-500 hover:text-white">
-            IMG
-        </a>
-
-        <a href="/pages/informeDetallado.php?ctx=2"
-           class="col-span-3 flex items-center justify-center bg-white p-2 rounded-xl font-semibold hover:bg-orange-500 hover:text-white">
-            Blood Pressure
-        </a>
+        <?php endforeach; ?>
 
         <!-- TOTAL 7 DIAS -->
         <div id="bloqueSemanal"
@@ -67,10 +50,6 @@ $estadoBD = $database ? "CONECTADO" : "ERROR";
             <p id="nombreServicio" class="font-semibold text-gray-700 text-sm">---</p>
         </div>
 
-        <a href="/pages/informeDetallado.php"
-           class="col-span-3 flex items-center justify-center bg-white p-2 rounded-xl font-semibold hover:bg-orange-500 hover:text-white">
-            TODO
-        </a>
     </div>
 
 
@@ -90,7 +69,7 @@ $estadoBD = $database ? "CONECTADO" : "ERROR";
     </div>
 
 
-    <div class="col-span-2 flex flex-col gap-10">
+    <div class="col-span-2 flex flex-col gap-4">
         <!-- ░ IP LOCAL (1 columna) ░ -->
         <div class="col-span-1 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white flex flex-col justify-center">
             <h3 class="font-bold text-lg">IP LOCAL</h3>
@@ -102,6 +81,15 @@ $estadoBD = $database ? "CONECTADO" : "ERROR";
         <div class="col-span-1 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white flex flex-col justify-center">
             <h3 class="font-bold text-lg">ESTADO BD</h3>
             <p class="font-bold text-2xl mt-1"><?= $estadoBD ?></p>
+        </div>
+
+        <div class="col-span-1 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white flex flex-col justify-center">
+            <h3 class="font-bold text-lg">ESTADO WS</h3>
+            <p id="wsUiStatus" class="font-bold text-xl mt-1">DESCONECTADO</p>
+            <p class="text-sm mt-2">Clientes: <span id="wsClientCount">0</span></p>
+            <p class="text-sm">IP: <span id="wsLastClientIp">---</span></p>
+            <p class="text-sm">Puerto: <span id="wsLastClientPort">---</span></p>
+            <p class="text-sm">Ultimo: <span id="wsLastClient">---</span></p>
         </div>
     </div>
 
@@ -238,4 +226,117 @@ function renderChartHoyAyer(hoy, ayer) {
 
 cargarComparacionHoyAyer();
 setInterval(cargarComparacionHoyAyer, 60000);
+</script>
+
+<script>
+let wsUi = null;
+let wsClients = new Map();
+
+function setWsUiStatus(text) {
+    const el = document.getElementById("wsUiStatus");
+    if (el) el.textContent = text;
+}
+
+function renderWsClients() {
+    const countEl = document.getElementById("wsClientCount");
+    const ipEl = document.getElementById("wsLastClientIp");
+    const portEl = document.getElementById("wsLastClientPort");
+    const lastEl = document.getElementById("wsLastClient");
+
+    if (countEl) countEl.textContent = String(wsClients.size);
+
+    if (!lastEl || !ipEl || !portEl) return;
+    if (wsClients.size === 0) {
+        ipEl.textContent = "---";
+        portEl.textContent = "---";
+        lastEl.textContent = "---";
+        return;
+    }
+
+    const ordered = Array.from(wsClients.values()).sort((a, b) => {
+        return String(a.connectedAt || "").localeCompare(String(b.connectedAt || ""));
+    });
+    const last = ordered[ordered.length - 1];
+    const ip = last.ip || "unknown";
+    const port = last.port !== null && last.port !== undefined ? String(last.port) : "?";
+    const rawAddress = last.rawAddress ? String(last.rawAddress) : "";
+
+    ipEl.textContent = ip;
+    portEl.textContent = port;
+    lastEl.textContent = rawAddress !== "" ? rawAddress : `${ip}:${port}`;
+}
+
+function applySnapshot(clients) {
+    wsClients = new Map();
+    if (Array.isArray(clients)) {
+        clients.forEach((c) => {
+            if (c && c.connectionId !== undefined) {
+                wsClients.set(String(c.connectionId), c);
+            }
+        });
+    }
+    renderWsClients();
+}
+
+function onWsMessage(raw) {
+    let msg = null;
+    try {
+        msg = JSON.parse(raw);
+    } catch (e) {
+        return;
+    }
+
+    if (!msg || !msg.type) return;
+
+    if (msg.type === "clients_snapshot") {
+        applySnapshot(msg.clients);
+        return;
+    }
+
+    if (msg.type === "client_connected" && msg.client) {
+        wsClients.set(String(msg.client.connectionId), msg.client);
+        renderWsClients();
+        return;
+    }
+
+    if (msg.type === "client_disconnected" && msg.client) {
+        wsClients.delete(String(msg.client.connectionId));
+        renderWsClients();
+        return;
+    }
+
+    if (msg.type === "client_updated" && msg.client) {
+        wsClients.set(String(msg.client.connectionId), msg.client);
+        renderWsClients();
+        return;
+    }
+}
+
+function connectWsUi() {
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    const url = `${proto}://${window.location.hostname}:8090?role=ui`;
+
+    setWsUiStatus("CONECTANDO...");
+    wsUi = new WebSocket(url);
+
+    wsUi.onopen = () => {
+        setWsUiStatus("CONECTADO");
+        wsUi.send(JSON.stringify({ type: "get_clients" }));
+    };
+
+    wsUi.onmessage = (event) => {
+        onWsMessage(event.data);
+    };
+
+    wsUi.onerror = () => {
+        setWsUiStatus("ERROR");
+    };
+
+    wsUi.onclose = () => {
+        setWsUiStatus("DESCONECTADO");
+        setTimeout(connectWsUi, 3000);
+    };
+}
+
+connectWsUi();
 </script>

@@ -31,6 +31,11 @@ foreach ($videos as $vid) {
 }
 
 /* 4. Borrar el programa → esto borra registros asociados por CASCADE */
+$database->delete("programa_paquetes", [
+    "id_programa" => $id
+]);
+
+/* 5. Borrar el programa → esto borra registros asociados por CASCADE */
 $database->delete("programas", [
     "id" => $id
 ]);

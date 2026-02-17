@@ -20,7 +20,7 @@ $contexto = isset($_GET["contexto"]) ? trim($_GET["contexto"]) : "";
 if ($contexto === "") {
     http_response_code(400);
     echo json_encode([
-        "error" => "Missing or invalid 'contexto' query param. Example: ?contexto=standby"
+        "error" => "Missing or invalid 'contexto' query param. Example: ?contexto=1"
     ], JSON_PRETTY_PRINT);
     exit;
 }
@@ -61,7 +61,7 @@ $resultado = [
     "timestamp"   => round(microtime(true) * 1000),
     "defaults"    => $defaults,
     "programName" => $programa["nombre"],
-    "category"    => $programa["category"] ?? $contexto,
+    "category"    => getJsonCategoryFromContexto($contexto, $database),
     "packageName" => $programa["packageName"] ?? "media",
     "images"      => [],
     "videos"      => []

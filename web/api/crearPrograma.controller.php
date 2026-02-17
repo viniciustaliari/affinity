@@ -4,6 +4,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 require __DIR__ . '/db.php';
+require_once __DIR__ . '/media_filename.php';
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -65,11 +66,13 @@ foreach ($_FILES as $key => $file) {
 
     $ext = pathinfo($file["name"], PATHINFO_EXTENSION);
     $nombreFinal = uniqid("img_", true) . "." . $ext;
+    $nombreOriginal = sanitizeClientMediaFileName((string)($file["name"] ?? ""), $nombreFinal);
 
     move_uploaded_file($file["tmp_name"], $dirImg . $nombreFinal);
 
     $database->insert("imagenes", [
         "nombre"      => $nombreFinal,
+        "nombre_original" => $nombreOriginal,
         "duracion"    => $duracion,
         "indice"      => $indice,
         "fit"         => $fit,
@@ -106,11 +109,13 @@ foreach ($_FILES as $key => $file) {
 
     $ext = pathinfo($file["name"], PATHINFO_EXTENSION);
     $nombreFinal = uniqid("vid_", true) . "." . $ext;
+    $nombreOriginal = sanitizeClientMediaFileName((string)($file["name"] ?? ""), $nombreFinal);
 
     move_uploaded_file($file["tmp_name"], $dirVid . $nombreFinal);
 
     $database->insert("video", [
         "nombre"      => $nombreFinal,
+        "nombre_original" => $nombreOriginal,
         "duracion"    => $duracion,
         "indice"      => $indice,
         "repeat"      => $repeat,
@@ -122,11 +127,33 @@ foreach ($_FILES as $key => $file) {
 }
 
 /* =========================================================
+   4) Generar ZIP y persistirlo en base de datos
+   ========================================================= */
+
+require_once __DIR__ . '/programa_package.php';
+$storedPackage = saveProgramaZipSnapshotToDatabase((int)$id_programa);
+
+if (($storedPackage["status"] ?? "") !== "ok") {
+    echo json_encode([
+        "status" => "error",
+        "mensaje" => "Programa guardado, pero no se pudo crear/persistir el ZIP.",
+        "id_programa" => $id_programa,
+        "package_error" => (string)($storedPackage["error"] ?? "unknown")
+    ]);
+    exit;
+}
+
+/* =========================================================
    RESPUESTA FINAL
    ========================================================= */
 
 echo json_encode([
     "status"      => "ok",
     "mensaje"     => "Programa creado correctamente",
-    "id_programa" => $id_programa
+    "id_programa" => $id_programa,
+    "package_saved" => true,
+    "package_id" => (int)($storedPackage["package_id"] ?? 0),
+    "package_version" => (int)($storedPackage["version"] ?? 0),
+    "zip_name" => (string)($storedPackage["zip_name"] ?? ""),
+    "zip_size_bytes" => (int)($storedPackage["zip_size_bytes"] ?? 0)
 ]);

@@ -1,100 +1,91 @@
 <?php
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/contextos.php';
+
 use Medoo\Medoo;
 
 header('Content-Type: application/json');
 
-$ctx = $_GET['ctx'] ?? null;
-
-if (!$ctx) {
+$ctx = isset($_GET['ctx']) ? intval($_GET['ctx']) : 0;
+if ($ctx <= 0) {
     echo json_encode(["error" => "Falta ctx"]);
     exit;
 }
 
-$servicioPorContexto = [
-    1 => 1,
-    2 => 2,
-    3 => 3,
-    4 => 4,
-    5 => 5
-];
-
-if (!isset($servicioPorContexto[$ctx])) {
-    echo json_encode(["error" => "Contexto inválido"]);
+$contexto = $database->get("contextos", ["id", "nombre"], ["id" => $ctx]);
+if (!$contexto) {
+    echo json_encode(["error" => "Contexto invalido"]);
     exit;
 }
 
-$id_servicio = $servicioPorContexto[$ctx];
+$servicioId = getServicioIdPorContextoId($ctx);
+$servicio = null;
 
-// Obtener servicio
-$servicio = $database->get("servicios", "*", ["id" => $id_servicio]);
+if ($servicioId !== null) {
+    $servicio = $database->get("servicios", "*", ["id" => $servicioId]);
+}
 
-// ------------------------
-// TOTAL HOY
-// ------------------------
-$hoy = date("Y-m-d");
+$totalHoy = 0.0;
+$totalMes = 0.0;
+$totalMesAnterior = 0.0;
+$datosDiarios = [];
 
-$usosHoy = $database->count("historial_servicios", [
-    "id_servicio" => $id_servicio,
-    "fecha[>=]" => "$hoy 00:00:00",
-    "fecha[<=]" => "$hoy 23:59:59"
-]);
+if ($servicio) {
+    $hoy = date("Y-m-d");
+    $inicioMes = date("Y-m-01");
+    $finMes = date("Y-m-t");
+    $inicioMesAnterior = date("Y-m-01", strtotime("-1 month"));
+    $finMesAnterior = date("Y-m-t", strtotime("-1 month"));
 
-$totalHoy = $usosHoy * $servicio['precio'];
+    $usosHoy = $database->count("historial_servicios", [
+        "id_servicio" => $servicioId,
+        "fecha[>=]" => "$hoy 00:00:00",
+        "fecha[<=]" => "$hoy 23:59:59"
+    ]);
 
-// ------------------------
-// TOTAL MES
-// ------------------------
-$inicioMes = date("Y-m-01");
-$finMes    = date("Y-m-t");
+    $usosMes = $database->count("historial_servicios", [
+        "id_servicio" => $servicioId,
+        "fecha[>=]" => "$inicioMes 00:00:00",
+        "fecha[<=]" => "$finMes 23:59:59"
+    ]);
 
-$usosMes = $database->count("historial_servicios", [
-    "id_servicio" => $id_servicio,
-    "fecha[>=]" => "$inicioMes 00:00:00",
-    "fecha[<=]" => "$finMes 23:59:59"
-]);
+    $usosMesAnt = $database->count("historial_servicios", [
+        "id_servicio" => $servicioId,
+        "fecha[>=]" => "$inicioMesAnterior 00:00:00",
+        "fecha[<=]" => "$finMesAnterior 23:59:59"
+    ]);
 
-$totalMes = $usosMes * $servicio['precio'];
+    $precio = (float)($servicio["precio"] ?? 0);
+    $totalHoy = $usosHoy * $precio;
+    $totalMes = $usosMes * $precio;
+    $totalMesAnterior = $usosMesAnt * $precio;
 
-// ------------------------
-// MES ANTERIOR
-// ------------------------
-$inicioMesAnterior = date("Y-m-01", strtotime("-1 month"));
-$finMesAnterior    = date("Y-m-t",  strtotime("-1 month"));
+    $datosDiarios = $database->select("historial_servicios", [
+        "dia" => Medoo::raw("DATE(fecha)"),
+        "conteo" => Medoo::raw("COUNT(*)")
+    ], [
+        "id_servicio" => $servicioId,
+        "fecha[>=]" => "$inicioMes 00:00:00",
+        "fecha[<=]" => "$finMes 23:59:59",
+        "GROUP" => Medoo::raw("DATE(fecha)")
+    ]);
+}
 
-$usosMesAnt = $database->count("historial_servicios", [
-    "id_servicio" => $id_servicio,
-    "fecha[>=]" => "$inicioMesAnterior 00:00:00",
-    "fecha[<=]" => "$finMesAnterior 23:59:59"
-]);
+if (!$servicio) {
+    $servicio = [
+        "id" => $servicioId,
+        "nombre" => $contexto["nombre"],
+        "precio" => 0
+    ];
+}
 
-$totalMesAnterior = $usosMesAnt * $servicio['precio'];
-
-// ------------------------
-// PROGRAMA ACTIVO
-// ------------------------
 $programaActivo = $database->get("programas", "*", [
     "contexto" => $ctx
 ]);
 
-// ------------------------
-// DATOS DIARIOS PARA CHART
-// ------------------------
-$datosDiarios = $database->select("historial_servicios", [
-    "dia" => Medoo::raw("DATE(fecha)"),
-    "conteo" => Medoo::raw("COUNT(*)")
-], [
-    "id_servicio" => $id_servicio,
-    "fecha[>=]" => "$inicioMes 00:00:00",
-    "fecha[<=]" => "$finMes 23:59:59",
-    "GROUP" => Medoo::raw("DATE(fecha)")
-]);
-
-// ------------------------
-// RESPUESTA FINAL
-// ------------------------
 echo json_encode([
     "status" => "ok",
+    "contexto" => $contexto,
     "servicio" => $servicio,
     "totalHoy" => $totalHoy,
     "totalMes" => $totalMes,

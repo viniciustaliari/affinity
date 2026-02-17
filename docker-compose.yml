@@ -5,11 +5,22 @@ services:
     build: ./web
     ports:
       - "8080:80"
-      - "8090:8090"
     volumes:
       - ./web:/var/www/html
     environment:
       - HOST_IP=192.168.1.17
+    depends_on:
+      - db
+    networks:
+      - appnet
+
+  ws:
+    build: ./web
+    command: php /var/www/html/api/ws-server.php
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./web:/var/www/html
     depends_on:
       - db
     networks:

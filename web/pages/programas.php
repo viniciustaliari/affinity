@@ -1,15 +1,18 @@
-<?php 
+﻿<?php 
 include_once '../components/head.php';
 require_once '../api/db.php';
 
 // Obtener contextos
-$contextos = $database->select("contextos", "*");
+$contextos = $database->select("contextos", "*", [
+    "ORDER" => ["id" => "ASC"]
+]);
 
 // Obtener programas por contexto
 $programas = [];
 foreach ($contextos as $ctx) {
     $programas[$ctx['id']] = $database->select("programas", "*", [
-        "contexto" => $ctx['id']
+        "contexto" => $ctx['id'],
+        "ORDER" => ["id" => "DESC"]
     ]);
 }
 ?>
@@ -59,7 +62,7 @@ foreach ($contextos as $ctx) {
     display: none;
 }
 
-/* Sección contexto */
+/* SecciÃ³n contexto */
 .ctx-title {
     background: #1e40af;
     border-radius: 10px;
@@ -89,6 +92,7 @@ foreach ($contextos as $ctx) {
             </h2>
 
             <input type="hidden" id="programaSeleccionado">
+            <input type="hidden" id="programaContextoSeleccionado">
 
             <?php foreach ($contextos as $ctx): ?>
             <div class="w-full mb-6">
@@ -99,7 +103,10 @@ foreach ($contextos as $ctx) {
 
                 <?php if (!empty($programas[$ctx['id']])): ?>
                     <?php foreach ($programas[$ctx['id']] as $p): ?>
-                    <div data-id="<?= $p['id'] ?>" class="programa-card">
+                    <div data-id="<?= (int)$p['id'] ?>"
+                         data-contexto="<?= (int)$p['contexto'] ?>"
+                         data-nombre="<?= htmlspecialchars($p['nombre']) ?>"
+                         class="programa-card">
 
                         <!-- Icono -->
                         <img src="../assets/img/play_blue.png" width="45">
@@ -108,7 +115,7 @@ foreach ($contextos as $ctx) {
                         <p class="font-bold text-2xl flex-1"><?= htmlspecialchars($p['nombre']) ?></p>
 
                         <!-- Check -->
-                        <div class="check hidden">✔</div>
+                        <div class="check hidden">âœ”</div>
 
                     </div>
                     <?php endforeach; ?>
@@ -127,7 +134,7 @@ foreach ($contextos as $ctx) {
             <a href="/pages/crearPrograma.php"
                class="bg-white rounded-2xl p-4 flex items-center gap-4 shadow hover:bg-blue-800 hover:text-white transition">
                 <img src="../assets/img/plus.png" width="50">
-                <p class="font-bold text-2xl">Añadir nuevo programa</p>
+                <p class="font-bold text-2xl">AÃ±adir nuevo programa</p>
             </a>
 
             <div id="btnEditar"
@@ -140,6 +147,12 @@ foreach ($contextos as $ctx) {
                class="bg-white rounded-2xl p-4 flex items-center gap-4 shadow cursor-pointer hover:bg-orange-600 hover:text-white transition">
                 <img src="../assets/img/trash.png" width="50">
                 <p class="font-bold text-2xl">Eliminar programa</p>
+            </div>
+
+            <div id="btnEnviarPrograma"
+               class="bg-white rounded-2xl p-4 flex items-center gap-4 shadow cursor-pointer hover:bg-green-700 hover:text-white transition">
+                <img src="../assets/img/send.png" width="50">
+                <p class="font-bold text-2xl">Enviar programa</p>
             </div>
 
             <div class="bg-white rounded-2xl p-4 flex items-center gap-4 shadow cursor-pointer hover:bg-blue-800 hover:text-white transition">
@@ -158,7 +171,7 @@ foreach ($contextos as $ctx) {
 
 <div id="modal-aviso" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-2xl p-7 w-96 shadow-xl text-center">
-        <h2 class="text-2xl font-bold text-blue-700 mb-3">Atención</h2>
+        <h2 class="text-2xl font-bold text-blue-700 mb-3">AtenciÃ³n</h2>
         <p class="text-gray-700 mb-6" id="modal-aviso-text">Debes seleccionar un programa primero.</p>
         <button onclick="cerrarModalAviso()" 
                 class="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition">
@@ -174,10 +187,10 @@ foreach ($contextos as $ctx) {
 <div id="modal-delete" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
     <div class="bg-white rounded-2xl p-7 w-96 shadow-xl text-center">
 
-        <h2 class="text-2xl font-bold text-red-600 mb-3">¿Eliminar programa?</h2>
+        <h2 class="text-2xl font-bold text-red-600 mb-3">Â¿Eliminar programa?</h2>
 
         <p class="text-gray-700 mb-6">
-            Esta acción no se puede deshacer.
+            Esta acciÃ³n no se puede deshacer.
         </p>
 
         <div class="flex justify-center gap-4">
@@ -213,7 +226,7 @@ function cerrarModalDelete() {
     document.getElementById("modal-delete").classList.add("hidden");
 }
 
-// Selección del programa
+// SelecciÃ³n del programa
 document.querySelectorAll(".programa-card").forEach(item => {
     item.addEventListener("click", () => {
 
@@ -226,13 +239,14 @@ document.querySelectorAll(".programa-card").forEach(item => {
         item.querySelector(".check").classList.remove("hidden");
 
         document.getElementById("programaSeleccionado").value = item.dataset.id;
+        document.getElementById("programaContextoSeleccionado").value = item.dataset.contexto || "";
 
         document.getElementById("tituloSeleccion").textContent =
             "Programa seleccionado: " + item.querySelector("p").textContent;
     });
 });
 
-// Botón editar
+// BotÃ³n editar
 document.getElementById("btnEditar").addEventListener("click", () => {
     let id = document.getElementById("programaSeleccionado").value;
 
@@ -244,7 +258,7 @@ document.getElementById("btnEditar").addEventListener("click", () => {
     window.location.href = "/pages/editarPrograma.php?id=" + id;
 });
 
-// BOTÓN ELIMINAR → abre modal de confirmación
+// BOTÃ“N ELIMINAR â†’ abre modal de confirmaciÃ³n
 document.getElementById("btnEliminar").addEventListener("click", () => {
     let id = document.getElementById("programaSeleccionado").value;
 
@@ -256,7 +270,7 @@ document.getElementById("btnEliminar").addEventListener("click", () => {
     mostrarModalDelete();
 });
 
-// CONFIRMAR ELIMINAR → AJAX
+// CONFIRMAR ELIMINAR â†’ AJAX
 document.getElementById("btnConfirmDelete").addEventListener("click", () => {
     let id = document.getElementById("programaSeleccionado").value;
 
@@ -272,4 +286,72 @@ document.getElementById("btnConfirmDelete").addEventListener("click", () => {
         }
     });
 });
+
+// Enviar programa seleccionado por WebSocket
+let wsProgramasUI = null;
+let wsProgramasReady = false;
+
+function conectarWsProgramas() {
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    const url = `${proto}://${window.location.hostname}:8090?role=ui&source=programas`;
+
+    wsProgramasUI = new WebSocket(url);
+
+    wsProgramasUI.onopen = () => {
+        wsProgramasReady = true;
+    };
+
+    wsProgramasUI.onclose = () => {
+        wsProgramasReady = false;
+        setTimeout(conectarWsProgramas, 3000);
+    };
+
+    wsProgramasUI.onerror = () => {
+        wsProgramasReady = false;
+    };
+
+    wsProgramasUI.onmessage = (event) => {
+        let msg = null;
+        try {
+            msg = JSON.parse(event.data);
+        } catch (e) {
+            return;
+        }
+
+        if (!msg || msg.type !== "push_program_result") return;
+
+        if (msg.status === "ok") {
+            const nombre = msg.program_name ? ` (${msg.program_name})` : "";
+            const sizeKb = msg.zip_size_bytes ? (msg.zip_size_bytes / 1024).toFixed(1) : "0.0";
+            const missingCount = Array.isArray(msg.missing_files) ? msg.missing_files.length : 0;
+            const receivers = Number(msg.receivers_connected || 0);
+            mostrarModalAviso(
+                `Programa enviado${nombre}. ZIP: ${msg.zip_name || "program.zip"} (${sizeKb} KB). Receptores conectados: ${receivers}. Clientes notificados: ${msg.clients_sent}. Archivos faltantes: ${missingCount}.`
+            );
+        } else {
+            mostrarModalAviso(msg.error || "No se pudo enviar el programa.");
+        }
+    };
+}
+
+document.getElementById("btnEnviarPrograma").addEventListener("click", () => {
+    const id = document.getElementById("programaSeleccionado").value;
+
+    if (!id) {
+        mostrarModalAviso("Debes seleccionar un programa antes de enviarlo.");
+        return;
+    }
+
+    if (!wsProgramasUI || !wsProgramasReady || wsProgramasUI.readyState !== WebSocket.OPEN) {
+        mostrarModalAviso("La conexion WebSocket de control no esta disponible.");
+        return;
+    }
+
+    wsProgramasUI.send(JSON.stringify({
+        type: "push_program",
+        program_id: Number(id)
+    }));
+});
+
+conectarWsProgramas();
 </script>
