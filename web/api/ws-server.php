@@ -53,6 +53,14 @@ class ProgramaWs implements MessageComponentInterface
         $contexto = $contextoRaw !== "" ? $contextoRaw : null;
 
         $peer = $this->extractPeer($conn);
+        $ipOverride = $this->resolveClientIpOverride($qs);
+        $portOverride = $this->resolveClientPortOverride($qs);
+        if ($ipOverride !== null) {
+            $peer["ip"] = $ipOverride;
+        }
+        if ($portOverride !== null) {
+            $peer["port"] = $portOverride;
+        }
         $clientInfo = [
             "connectionId" => (int)$conn->resourceId,
             "ip" => $peer["ip"],
@@ -75,12 +83,6 @@ class ProgramaWs implements MessageComponentInterface
 
         if ($contexto !== null) {
             $this->sendProgramPayload($conn, $contexto);
-        } else {
-            $conn->send($this->toJson([
-                "type" => "client_connected_ack",
-                "status" => "ok",
-                "client" => $clientInfo
-            ]));
         }
     }
 
@@ -116,6 +118,16 @@ class ProgramaWs implements MessageComponentInterface
                     return;
                 }
 
+                $targetClientIds = $this->parseTargetClientIds($data["client_ids"] ?? null);
+                if ($targetClientIds !== null && count($targetClientIds) === 0) {
+                    $from->send($this->toJson([
+                        "type" => "push_program_result",
+                        "status" => "error",
+                        "error" => "No target clients selected."
+                    ]));
+                    return;
+                }
+
                 $package = $this->loadProgramPackageByIdSafe($programId);
                 if (isset($package["error"])) {
                     $from->send($this->toJson([
@@ -127,7 +139,7 @@ class ProgramaWs implements MessageComponentInterface
                     return;
                 }
 
-                $broadcastResult = $this->broadcastPackageToClients($package);
+                $broadcastResult = $this->broadcastPackageToClients($package, $targetClientIds);
                 if (!empty($broadcastResult["error"])) {
                     $from->send($this->toJson([
                         "type" => "push_program_result",
@@ -138,6 +150,11 @@ class ProgramaWs implements MessageComponentInterface
                     return;
                 }
                 $sent = (int)($broadcastResult["sent"] ?? 0);
+                $this->markProgramAsSentIfDelivered($package, $sent);
+                $receiversConnected = (int)($broadcastResult["receivers_connected"] ?? 0);
+                $clientsSelected = is_array($targetClientIds)
+                    ? count($targetClientIds)
+                    : $receiversConnected;
 
                 $result = [
                     "type" => "push_program_result",
@@ -148,7 +165,9 @@ class ProgramaWs implements MessageComponentInterface
                     "zip_name" => (string)($package["zip_name"] ?? ""),
                     "zip_size_bytes" => (int)($package["zip_size_bytes"] ?? 0),
                     "missing_files" => $package["missing_files"] ?? [],
-                    "receivers_connected" => count($this->packageReceiverConnections),
+                    "receivers_connected" => $receiversConnected,
+                    "clients_selected" => $clientsSelected,
+                    "clients_missing" => $broadcastResult["missing_target_ids"] ?? [],
                     "clients_sent" => $sent
                 ];
 
@@ -159,7 +178,7 @@ class ProgramaWs implements MessageComponentInterface
 
             $from->send($this->toJson([
                 "type" => "error",
-                "error" => "Unknown UI message. Use get_clients or push_program."
+                "error" => "Unknown UI message. Use get_clients or push_program (optional client_ids)."
             ]));
             return;
         }
@@ -325,7 +344,7 @@ class ProgramaWs implements MessageComponentInterface
         }
     }
 
-    private function broadcastPackageToClients(array $package): array
+    private function broadcastPackageToClients(array $package, ?array $targetClientIds = null): array
     {
         $zipBase64 = (string)($package["zip_base64"] ?? "");
         $zipBinary = base64_decode($zipBase64, true);
@@ -336,25 +355,29 @@ class ProgramaWs implements MessageComponentInterface
             ];
         }
 
-        $json = $this->toJson([
-            "type" => "program_package",
-            "program_id" => (int)($package["program_id"] ?? 0),
-            "program_name" => (string)($package["program_name"] ?? ""),
-            "contexto" => (string)($package["contexto"] ?? ""),
-            "zip_name" => (string)($package["zip_name"] ?? "program.zip"),
-            "zip_encoding" => "binary",
-            "zip_size_bytes" => strlen($zipBinary),
-            "has_binary_payload" => true,
-            "manifest_file" => "program.json",
-            "manifest" => $package["manifest"] ?? [],
-            "missing_files" => $package["missing_files"] ?? [],
-            "timestamp" => (int)round(microtime(true) * 1000)
-        ]);
         $count = 0;
+        $connectedClientIds = [];
+        $targetMap = null;
+        if (is_array($targetClientIds)) {
+            $targetMap = [];
+            foreach ($targetClientIds as $targetId) {
+                $targetMap[(int)$targetId] = true;
+            }
+        }
 
         foreach ($this->packageReceiverConnections as $clientConn) {
+            $connId = (int)$clientConn->resourceId;
+            $role = $this->connectionRoleById[$connId] ?? '';
+            if ($role !== 'client') {
+                continue;
+            }
+
+            $connectedClientIds[$connId] = true;
+            if (is_array($targetMap) && !isset($targetMap[$connId])) {
+                continue;
+            }
+
             try {
-                $clientConn->send($json);
                 $clientConn->send(new Frame($zipBinary, true, Frame::OP_BINARY));
                 $count++;
             } catch (\Throwable $e) {
@@ -362,9 +385,103 @@ class ProgramaWs implements MessageComponentInterface
             }
         }
 
+        $missingTargetIds = [];
+        if (is_array($targetMap)) {
+            foreach (array_keys($targetMap) as $targetId) {
+                if (!isset($connectedClientIds[(int)$targetId])) {
+                    $missingTargetIds[] = (int)$targetId;
+                }
+            }
+            sort($missingTargetIds);
+        }
+
         return [
-            "sent" => $count
+            "sent" => $count,
+            "receivers_connected" => count($connectedClientIds),
+            "missing_target_ids" => $missingTargetIds
         ];
+    }
+
+    private function parseTargetClientIds($raw): ?array
+    {
+        if ($raw === null) {
+            return null;
+        }
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($raw as $value) {
+            if (!is_numeric($value)) {
+                continue;
+            }
+            $id = intval($value);
+            if ($id > 0) {
+                $map[$id] = true;
+            }
+        }
+
+        return array_keys($map);
+    }
+
+    private function markProgramAsSentIfDelivered(array $package, int $sentCount): void
+    {
+        if ($sentCount <= 0) {
+            return;
+        }
+
+        $database = $GLOBALS['database'] ?? null;
+        if (!$database) {
+            return;
+        }
+
+        $programId = (int)($package["program_id"] ?? 0);
+        if ($programId <= 0) {
+            return;
+        }
+
+        $contexto = trim((string)($package["contexto"] ?? ""));
+        $programName = trim((string)($package["program_name"] ?? ""));
+
+        if ($contexto === '') {
+            try {
+                $ctx = $database->get("programas", "contexto", ["id" => $programId]);
+                $contexto = trim((string)$ctx);
+            } catch (\Throwable $e) {
+                $contexto = '';
+            }
+        }
+        if ($contexto === '') {
+            return;
+        }
+
+        if ($programName === '') {
+            try {
+                $name = $database->get("programas", "nombre", ["id" => $programId]);
+                $programName = trim((string)$name);
+            } catch (\Throwable $e) {
+                $programName = '';
+            }
+        }
+        if ($programName === '') {
+            $programName = "program_" . $programId;
+        }
+
+        $payload = [
+            "id_programa" => $programId,
+            "program_name" => $programName,
+            "sent_at" => date("Y-m-d H:i:s")
+        ];
+
+        try {
+            // Reemplaza siempre el programa activo del mismo contexto:
+            // borra cualquier previo y deja solo el ultimo enviado.
+            $database->delete("programas_enviados_activos", ["contexto" => $contexto]);
+            $database->insert("programas_enviados_activos", array_merge($payload, ["contexto" => $contexto]));
+        } catch (\Throwable $e) {
+            // No bloqueamos envio WS si falla persistencia de estado activo.
+        }
     }
 
     private function extractPeer(ConnectionInterface $conn): array
@@ -377,11 +494,30 @@ class ProgramaWs implements MessageComponentInterface
         if ($request && method_exists($request, 'getServerParams')) {
             $params = (array)$request->getServerParams();
 
+            $xRealIp = isset($params['HTTP_X_REAL_IP']) ? (string)$params['HTTP_X_REAL_IP'] : '';
+            if ($xRealIp !== '') {
+                $candidate = trim($xRealIp, '[]');
+                if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                    $ip = $candidate;
+                }
+            }
+
+            $clientIp = isset($params['HTTP_CLIENT_IP']) ? (string)$params['HTTP_CLIENT_IP'] : '';
+            if ($ip === 'unknown' && $clientIp !== '') {
+                $candidate = trim($clientIp, '[]');
+                if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                    $ip = $candidate;
+                }
+            }
+
             $forwardedFor = isset($params['HTTP_X_FORWARDED_FOR']) ? (string)$params['HTTP_X_FORWARDED_FOR'] : '';
-            if ($forwardedFor !== '') {
+            if ($ip === 'unknown' && $forwardedFor !== '') {
                 $firstIp = trim(explode(',', $forwardedFor)[0]);
                 if ($firstIp !== '') {
-                    $ip = trim($firstIp, '[]');
+                    $candidate = trim($firstIp, '[]');
+                    if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                        $ip = $candidate;
+                    }
                 }
             }
 
@@ -435,6 +571,43 @@ class ProgramaWs implements MessageComponentInterface
             "port" => $port,
             "rawAddress" => $rawAddress
         ];
+    }
+
+    private function resolveClientIpOverride(array $qs): ?string
+    {
+        $keys = ['client_ip', 'ip', 'real_ip', 'device_ip'];
+        foreach ($keys as $key) {
+            if (!isset($qs[$key])) {
+                continue;
+            }
+            $candidate = trim((string)$qs[$key]);
+            if ($candidate === '') {
+                continue;
+            }
+            if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                return $candidate;
+            }
+        }
+        return null;
+    }
+
+    private function resolveClientPortOverride(array $qs): ?int
+    {
+        $keys = ['client_port', 'port', 'device_port'];
+        foreach ($keys as $key) {
+            if (!isset($qs[$key])) {
+                continue;
+            }
+            $candidate = trim((string)$qs[$key]);
+            if ($candidate === '' || !ctype_digit($candidate)) {
+                continue;
+            }
+            $port = intval($candidate);
+            if ($port >= 1 && $port <= 65535) {
+                return $port;
+            }
+        }
+        return null;
     }
 
     private function collectRemoteCandidates(object $conn): array

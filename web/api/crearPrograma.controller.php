@@ -59,12 +59,17 @@ foreach ($_FILES as $key => $file) {
         continue;
     }
 
+    $mime = detectUploadMimeType($file);
+    if (!isImageMime($mime)) {
+        continue;
+    }
+
     $duracion   = floatval($_POST["duracionImg_$i"] ?? 1);
     $indice     = intval($_POST["indiceImg_$i"] ?? 0);
     $fit        = $_POST["fitImg_$i"] ?? 'cover';
     $transition = $_POST["transitionImg_$i"] ?? 'fade';
 
-    $ext = pathinfo($file["name"], PATHINFO_EXTENSION);
+    $ext = normalizeMediaExtension($mime, (string)($file["name"] ?? ""), 'image');
     $nombreFinal = uniqid("img_", true) . "." . $ext;
     $nombreOriginal = sanitizeClientMediaFileName((string)($file["name"] ?? ""), $nombreFinal);
 
@@ -102,12 +107,17 @@ foreach ($_FILES as $key => $file) {
         continue;
     }
 
+    $mime = detectUploadMimeType($file);
+    if (!isVideoMime($mime)) {
+        continue;
+    }
+
     $duracion = floatval($_POST["duracionVideo_$i"] ?? 1);
     $indice   = intval($_POST["indiceVideo_$i"] ?? 0);
     $repeat   = isset($_POST["repeatVideo_$i"]) ? intval($_POST["repeatVideo_$i"]) : null;
     $mute     = isset($_POST["muteVideo_$i"]) ? intval($_POST["muteVideo_$i"]) : 0;
 
-    $ext = pathinfo($file["name"], PATHINFO_EXTENSION);
+    $ext = normalizeMediaExtension($mime, (string)($file["name"] ?? ""), 'video');
     $nombreFinal = uniqid("vid_", true) . "." . $ext;
     $nombreOriginal = sanitizeClientMediaFileName((string)($file["name"] ?? ""), $nombreFinal);
 

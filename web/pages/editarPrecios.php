@@ -30,9 +30,23 @@ function closeModal() {
 <main class="px-3">
     <div class="bg-gradient-to-r from-cyan-500 to-blue-500 p-3 rounded-2xl grid grid-rows-7 grid-cols-7 gap-5 h-[80vh]">
 
-        <h3 class="col-span-7 flex items-center justify-center font-bold text-xl text-white">
-            INFORMACIÓN
-        </h3>
+        <div class="col-span-7 grid grid-cols-3 items-center px-2">
+            <div class="flex items-center justify-start">
+                <a href="/pages/configuracion.php"
+                   class="z-20 w-16 h-16 rounded-full border-2 border-white/85 bg-white/25 flex items-center justify-center text-white hover:bg-orange-500 hover:border-orange-300 transition shadow-lg"
+                   aria-label="Volver atras"
+                   title="Volver atras">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M19 12H5"></path>
+                        <path d="M12 19L5 12L12 5"></path>
+                    </svg>
+                </a>
+            </div>
+            <h3 class="font-bold text-xl text-white text-center">
+                PRECIFICACION
+            </h3>
+            <div></div>
+        </div>
 
         <!-- PESO/ALTURA (id = 1) -->
         <div class="col-span-3 col-start-3 flex gap-6 items-center justify-between font-bold text-xl">
@@ -41,9 +55,9 @@ function closeModal() {
             <form method="POST" action="../api/setPrecios.controller.php"
                   class="flex flex-row gap-5 items-center justify-center">
 
-                <input type="text" 
+                <input type="text"
                        name="peso"
-                       value="<?= $prices[1] ?>" 
+                       value="<?= $prices[1] ?>"
                        class="p-3 rounded-lg text-center bg-white w-1/4">
 
                 <button class="bg-green-400 p-3 rounded-lg cursor-pointer w-2/4 hover:bg-green-500 hover:text-white shadow-xl/20">
@@ -60,9 +74,9 @@ function closeModal() {
             <form method="POST" action="../api/setPrecios.controller.php"
                   class="flex flex-row gap-5 items-center justify-center">
 
-                <input type="text" 
+                <input type="text"
                        name="bp"
-                       value="<?= $prices[2] ?>" 
+                       value="<?= $prices[2] ?>"
                        class="p-3 rounded-lg text-center bg-white w-1/4">
 
                 <button class="bg-green-400 p-3 rounded-lg cursor-pointer w-2/4 hover:bg-green-500 hover:text-white shadow-xl/20">
@@ -79,9 +93,9 @@ function closeModal() {
             <form method="POST" action="../api/setPrecios.controller.php"
                   class="flex flex-row gap-5 items-center justify-center">
 
-                <input type="text" 
+                <input type="text"
                        name="oxi"
-                       value="<?= $prices[3] ?>" 
+                       value="<?= $prices[3] ?>"
                        class="p-3 rounded-lg text-center bg-white w-1/4">
 
                 <button class="bg-green-400 p-3 rounded-lg cursor-pointer w-2/4 hover:bg-green-500 hover:text-white shadow-xl/20">
@@ -98,9 +112,9 @@ function closeModal() {
             <form method="POST" action="../api/setPrecios.controller.php"
                   class="flex flex-row gap-5 items-center justify-center">
 
-                <input type="text" 
+                <input type="text"
                        name="img"
-                       value="<?= $prices[4] ?>" 
+                       value="<?= $prices[4] ?>"
                        class="p-3 rounded-lg text-center bg-white w-1/4">
 
                 <button class="bg-green-400 p-3 rounded-lg cursor-pointer w-2/4 hover:bg-green-500 hover:text-white shadow-xl/20">
@@ -117,9 +131,9 @@ function closeModal() {
             <form method="POST" action="../api/setPrecios.controller.php"
                   class="flex flex-row gap-5 items-center justify-center">
 
-                <input type="text" 
+                <input type="text"
                        name="todo"
-                       value="<?= $prices[5] ?>" 
+                       value="<?= $prices[5] ?>"
                        class="p-3 rounded-lg text-center bg-white w-1/4">
 
                 <button class="bg-green-400 p-3 rounded-lg cursor-pointer w-2/4 hover:bg-green-500 hover:text-white shadow-xl/20">

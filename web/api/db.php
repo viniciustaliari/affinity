@@ -50,6 +50,30 @@ if (!function_exists('ensureProgramaPaquetesSchema')) {
     }
 }
 
+if (!function_exists('ensureProgramasEnviadosActivosSchema')) {
+    function ensureProgramasEnviadosActivosSchema(Medoo $database): void
+    {
+        try {
+            $database->query(
+                "CREATE TABLE IF NOT EXISTS `programas_enviados_activos` (
+                    `contexto` varchar(32) NOT NULL,
+                    `id_programa` int NOT NULL,
+                    `program_name` varchar(255) NOT NULL,
+                    `sent_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (`contexto`),
+                    KEY `idx_programa_sent_at` (`sent_at`),
+                    KEY `idx_programa_id` (`id_programa`),
+                    CONSTRAINT `fk_programa_enviado_programa`
+                        FOREIGN KEY (`id_programa`) REFERENCES `programas` (`id`)
+                        ON DELETE CASCADE ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;"
+            );
+        } catch (\Throwable $e) {
+            // No bloqueamos la app si la auto-migracion falla.
+        }
+    }
+}
+
 if (!function_exists('ensureMediaOriginalNameColumns')) {
     function ensureMediaOriginalNameColumns(Medoo $database): void
     {
@@ -90,6 +114,7 @@ if (!function_exists('tableHasColumn')) {
 
 ensureContextosCanonicos($database);
 ensureProgramaPaquetesSchema($database);
+ensureProgramasEnviadosActivosSchema($database);
 ensureMediaOriginalNameColumns($database);
 
 // $database = new Medoo([

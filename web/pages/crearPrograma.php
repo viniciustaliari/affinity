@@ -35,11 +35,13 @@ $contextos = $database->select("contextos", ["id", "nombre"], [
 <!-- BOTONES -->
 <div class="flex gap-4">
   <button id="btnAddImagen"
+          type="button"
           class="bg-green-500 text-white px-4 py-2 rounded">
     + Imagen
   </button>
 
   <button id="btnAddVideo"
+          type="button"
           class="bg-purple-500 text-white px-4 py-2 rounded">
     + Video
   </button>
@@ -50,11 +52,13 @@ $contextos = $database->select("contextos", ["id", "nombre"], [
 
 <div class="flex gap-4">
   <button id="btnGuardarPrograma"
+          type="button"
           class="bg-blue-600 text-white p-4 rounded-xl text-xl font-bold flex-1">
     Guardar
   </button>
 
   <button id="btnEnviarPrograma"
+          type="button"
           class="bg-emerald-600 text-white p-4 rounded-xl text-xl font-bold flex-1">
     Enviar
   </button>
@@ -64,7 +68,7 @@ $contextos = $database->select("contextos", ["id", "nombre"], [
 </div>
 </main>
 
-<!-- ================= MODAL Ã‰XITO ================= -->
+<!-- ================= MODAL ÉXITO ================= -->
 <div id="modalExito"
      class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
   <div class="bg-white rounded-2xl p-8 w-96 text-center shadow-xl">
@@ -102,42 +106,144 @@ $contextos = $database->select("contextos", ["id", "nombre"], [
 
 <script>
 const timeline = document.getElementById("contenedorTimeline");
+const IMAGE_ACCEPT_STR = ".jpg,.jpeg,.png,.webp,.gif,.bmp,.svg,image/jpeg,image/png,image/webp,image/gif,image/bmp,image/svg+xml";
+const VIDEO_ACCEPT_STR = ".mp4,.webm,.mov,.avi,.mkv,.ogv,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/ogg";
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif", "bmp", "svg"]);
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "avi", "mkv", "ogv"]);
 
 new Sortable(timeline, {
   animation: 150,
   handle: ".handle"
 });
 
+function fileExt(name) {
+  const n = String(name || "");
+  const idx = n.lastIndexOf(".");
+  if (idx < 0) return "";
+  return n.slice(idx + 1).toLowerCase();
+}
+
+function isImageFile(file) {
+  const mime = String((file && file.type) || "").toLowerCase();
+  if (mime.startsWith("image/")) return true;
+  return IMAGE_EXTENSIONS.has(fileExt(file && file.name));
+}
+
+function isVideoFile(file) {
+  const mime = String((file && file.type) || "").toLowerCase();
+  if (mime.startsWith("video/")) return true;
+  return VIDEO_EXTENSIONS.has(fileExt(file && file.name));
+}
+
+const inputFilesMemory = new WeakMap();
+
+function updateInputFiles(input, validFiles, originalCount) {
+  if (typeof DataTransfer !== "undefined") {
+    const dt = new DataTransfer();
+    validFiles.forEach((f) => dt.items.add(f));
+    input.files = dt.files;
+    return;
+  }
+  if (validFiles.length !== originalCount) {
+    input.value = "";
+  }
+}
+
+function filtrarArchivos(input, validator, label) {
+  const files = Array.from(input.files || []);
+  const remembered = inputFilesMemory.get(input) || [];
+
+  if (files.length === 0) {
+    if (remembered.length > 0) {
+      updateInputFiles(input, remembered, remembered.length);
+      return remembered;
+    }
+    return [];
+  }
+
+  const valid = files.filter(validator);
+  const invalidCount = files.length - valid.length;
+  if (invalidCount > 0) {
+    alert(`Se omitieron ${invalidCount} archivo(s). Solo se permiten ${label}.`);
+  }
+
+  if (valid.length > 0) {
+    inputFilesMemory.set(input, valid);
+    updateInputFiles(input, valid, files.length);
+    return valid;
+  }
+
+  if (remembered.length > 0) {
+    updateInputFiles(input, remembered, remembered.length);
+    return remembered;
+  }
+
+  updateInputFiles(input, [], files.length);
+  inputFilesMemory.set(input, []);
+  return [];
+}
+
 /* ===== PREVIEW ===== */
 function previewImagen(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const img = input.closest(".bloque").querySelector(".previewImg");
+  const bloque = input.closest(".bloque");
+  const img = bloque.querySelector(".previewImg");
+  const info = bloque.querySelector(".mediaCountInfo");
+  const files = filtrarArchivos(input, isImageFile, "imagenes");
+  if (files.length === 0) {
+    img.removeAttribute("src");
+    img.classList.add("hidden");
+    if (info) info.textContent = "";
+    return;
+  }
+
+  const file = files[0];
   img.src = URL.createObjectURL(file);
   img.classList.remove("hidden");
+
+  if (info) {
+    info.textContent = files.length === 1
+      ? "1 imagen seleccionada"
+      : `${files.length} imagenes seleccionadas`;
+  }
 }
 
 function previewVideo(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const video = input.closest(".bloque").querySelector(".previewVideo");
+  const bloque = input.closest(".bloque");
+  const video = bloque.querySelector(".previewVideo");
+  const info = bloque.querySelector(".mediaCountInfo");
+  const files = filtrarArchivos(input, isVideoFile, "videos");
+  if (files.length === 0) {
+    video.removeAttribute("src");
+    video.classList.add("hidden");
+    if (info) info.textContent = "";
+    return;
+  }
+
+  const file = files[0];
   video.src = URL.createObjectURL(file);
   video.classList.remove("hidden");
+
+  if (info) {
+    info.textContent = files.length === 1
+      ? "1 video seleccionado"
+      : `${files.length} videos seleccionados`;
+  }
 }
 
 /* ===== BLOQUES ===== */
-function aÃ±adirBloqueImagen() {
+function addBloqueImagen() {
   timeline.insertAdjacentHTML("beforeend", `
   <div class="bloque p-4 border rounded-xl flex gap-4 items-start"
        data-tipo="imagen">
 
     <div class="flex-1 flex flex-col gap-2">
-      <div class="handle cursor-grab text-gray-500 font-bold">â‰¡ Imagen</div>
+      <div class="handle cursor-grab text-gray-500 font-bold">≡ Imagen</div>
 
-      <input type="file" class="archivoImagen" accept="image/*"
-             onchange="previewImagen(this)">
+	      <input type="file" class="archivoImagen" accept="${IMAGE_ACCEPT_STR}" multiple
+	             onchange="previewImagen(this)">
+	      <p class="mediaCountInfo text-xs text-slate-500"></p>
 
-      <input type="number" class="duracionImg" placeholder="DuraciÃ³n (seg)">
+      <input type="number" class="duracionImg" placeholder="Duración (seg)">
 
       <select class="fitImg">
         <option value="cover">Cover</option>
@@ -162,18 +268,19 @@ function aÃ±adirBloqueImagen() {
   `);
 }
 
-function aÃ±adirBloqueVideo() {
+function addBloqueVideo() {
   timeline.insertAdjacentHTML("beforeend", `
   <div class="bloque p-4 border rounded-xl flex gap-4 items-start"
        data-tipo="video">
 
     <div class="flex-1 flex flex-col gap-2">
-      <div class="handle cursor-grab text-gray-500 font-bold">â‰¡ Video</div>
+      <div class="handle cursor-grab text-gray-500 font-bold">≡ Video</div>
 
-      <input type="file" class="archivoVideo" accept="video/*"
-             onchange="previewVideo(this)">
+	      <input type="file" class="archivoVideo" accept="${VIDEO_ACCEPT_STR}" multiple
+	             onchange="previewVideo(this)">
+	      <p class="mediaCountInfo text-xs text-slate-500"></p>
 
-      <input type="number" class="duracionVideo" placeholder="DuraciÃ³n (seg)">
+      <input type="number" class="duracionVideo" placeholder="Duración (seg)">
       <input type="number" class="repeatVideo" placeholder="Repeticiones">
 
       <label class="flex items-center gap-2">
@@ -200,8 +307,8 @@ const btnGuardarPrograma = document.getElementById("btnGuardarPrograma");
 const btnEnviarPrograma = document.getElementById("btnEnviarPrograma");
 const nombreProgramaInput = document.getElementById("nombrePrograma");
 const textoProgramaInput = document.getElementById("textoPrograma");
-btnAddImagen.onclick = aÃ±adirBloqueImagen;
-btnAddVideo.onclick = aÃ±adirBloqueVideo;
+btnAddImagen.onclick = addBloqueImagen;
+btnAddVideo.onclick = addBloqueVideo;
 const contextoProgramaSelect = document.getElementById("contextoPrograma");
 let wsCreateUI = null;
 let wsCreateReady = false;
@@ -303,28 +410,43 @@ function construirFormDataPrograma() {
 
   timeline.querySelectorAll(".bloque").forEach(b => {
     if (b.dataset.tipo === "imagen") {
-      const f = b.querySelector(".archivoImagen").files[0];
-      if (!f) return;
+      const input = b.querySelector(".archivoImagen");
+      const files = filtrarArchivos(input, isImageFile, "imagenes");
+      if (files.length === 0) return;
 
-      fd.append("imagen_" + orden, f);
-      fd.append("duracionImg_" + orden, b.querySelector(".duracionImg").value);
-      fd.append("indiceImg_" + orden, orden);
-      fd.append("fitImg_" + orden, b.querySelector(".fitImg").value);
-      fd.append("transitionImg_" + orden, b.querySelector(".transitionImg").value);
+      const duracion = b.querySelector(".duracionImg").value;
+      const fit = b.querySelector(".fitImg").value;
+      const transition = b.querySelector(".transitionImg").value;
+
+      files.forEach((f) => {
+        fd.append("imagen_" + orden, f, f.name);
+        fd.append("duracionImg_" + orden, duracion);
+        fd.append("indiceImg_" + orden, orden);
+        fd.append("fitImg_" + orden, fit);
+        fd.append("transitionImg_" + orden, transition);
+        orden++;
+      });
+      return;
     }
 
     if (b.dataset.tipo === "video") {
-      const f = b.querySelector(".archivoVideo").files[0];
-      if (!f) return;
+      const input = b.querySelector(".archivoVideo");
+      const files = filtrarArchivos(input, isVideoFile, "videos");
+      if (files.length === 0) return;
 
-      fd.append("video_" + orden, f);
-      fd.append("duracionVideo_" + orden, b.querySelector(".duracionVideo").value);
-      fd.append("indiceVideo_" + orden, orden);
-      fd.append("repeatVideo_" + orden, b.querySelector(".repeatVideo").value);
-      fd.append("muteVideo_" + orden, b.querySelector(".muteVideo").checked ? 1 : 0);
+      const duracion = b.querySelector(".duracionVideo").value;
+      const repeat = b.querySelector(".repeatVideo").value;
+      const mute = b.querySelector(".muteVideo").checked ? 1 : 0;
+
+      files.forEach((f) => {
+        fd.append("video_" + orden, f, f.name);
+        fd.append("duracionVideo_" + orden, duracion);
+        fd.append("indiceVideo_" + orden, orden);
+        fd.append("repeatVideo_" + orden, repeat);
+        fd.append("muteVideo_" + orden, mute);
+        orden++;
+      });
     }
-
-    orden++;
   });
 
   return fd;

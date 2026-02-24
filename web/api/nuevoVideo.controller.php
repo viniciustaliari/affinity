@@ -20,7 +20,13 @@ if ($file['error'] !== UPLOAD_ERR_OK) {
     exit;
 }
 
-$ext = pathinfo($file["name"], PATHINFO_EXTENSION);
+$mime = detectUploadMimeType($file);
+if (!isVideoMime($mime)) {
+    echo json_encode(["status" => "error", "msg" => "El archivo no es un video valido"]);
+    exit;
+}
+
+$ext = normalizeMediaExtension($mime, (string)($file["name"] ?? ""), 'video');
 $nombreFinal = uniqid("vid_", true) . "." . $ext;
 $nombreOriginal = sanitizeClientMediaFileName((string)($file["name"] ?? ""), $nombreFinal);
 

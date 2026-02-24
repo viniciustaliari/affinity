@@ -12,10 +12,28 @@ if ($ctx <= 0) {
     exit;
 }
 
+if (!isContextoServicio($ctx)) {
+    echo json_encode([
+        "error" => "El contexto seleccionado no es un servicio",
+        "ctx" => $ctx
+    ]);
+    exit;
+}
+
 $contexto = $database->get("contextos", ["id", "nombre"], ["id" => $ctx]);
 if (!$contexto) {
-    echo json_encode(["error" => "Contexto invalido"]);
-    exit;
+    $servCtx = function_exists('getContextosServicioCanonicos')
+        ? getContextosServicioCanonicos()
+        : [];
+    $fallbackNombre = $servCtx[$ctx] ?? null;
+    if ($fallbackNombre === null) {
+        echo json_encode(["error" => "Contexto invalido"]);
+        exit;
+    }
+    $contexto = [
+        "id" => $ctx,
+        "nombre" => $fallbackNombre
+    ];
 }
 
 $servicioId = getServicioIdPorContextoId($ctx);

@@ -2,3 +2,22 @@ desktop/node_modules/
 **/node_modules/
 .env
 .env.*
+# ---- Database runtime (MariaDB/MySQL) ----
+data/
+*.ibd
+*.frm
+ibdata1
+ib_logfile*
+ibtmp1
+undo*
+aria_log*
+ddl_recovery*
+tc.log
+ib_buffer_pool
+
+# ---- Generated media ----
+web/data/images/
+web/data/videos/
+
+# ---- Composer dependencies ----
+web/vendor/

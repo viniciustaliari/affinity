@@ -1,9 +1,16 @@
 <?php
 $current = $_SERVER['REQUEST_URI'];
+$currentPath = parse_url($current, PHP_URL_PATH) ?? '/';
+$isConfigArea =
+    str_contains($currentPath, '/pages/configuracion') ||
+    str_contains($currentPath, '/pages/configBascula') ||
+    str_contains($currentPath, '/pages/editarPrecios') ||
+    str_contains($currentPath, '/pages/configServidor');
 ?>
 
 <head>
-    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../assets/css/head.css">
     <link rel="stylesheet" href="../output.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -66,19 +73,17 @@ $current = $_SERVER['REQUEST_URI'];
             </li>
         </ul>
 
-        <a class="flex bg-gray-500 rounded-full items-center px-3 text-white hover:bg-blue-400
-        <?php echo ($current === '/pages/configuracion.php') ? 'bg-blue-400' : '' ?>
-        <?php echo ($current === '/pages/editarPrecios.php') ? 'bg-blue-400' : '' ?>
-        <?php echo ($current === '/pages/configBascula.php') ? 'bg-blue-400' : '' ?>" 
+        <a class="flex rounded-full items-center px-3 text-white transition
+        <?= $isConfigArea ? 'bg-blue-400 ring-2 ring-blue-300 ring-offset-2 ring-offset-transparent' : 'bg-gray-500 hover:bg-blue-400' ?>" 
         href="/pages/configuracion.php">
             <img 
                 src="../assets/img/config.png" 
                 alt="User Icon" 
+                class="brightness-0 invert"
+                style="filter: brightness(0) invert(1);"
                 width="27"
                 height="30"
             >
         </a>
     </nav>
 </header>
-
-

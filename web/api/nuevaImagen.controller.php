@@ -20,7 +20,13 @@ if ($file['error'] !== UPLOAD_ERR_OK) {
     exit;
 }
 
-$ext = pathinfo($file["name"], PATHINFO_EXTENSION);
+$mime = detectUploadMimeType($file);
+if (!isImageMime($mime)) {
+    echo json_encode(["status" => "error", "msg" => "El archivo no es una imagen valida"]);
+    exit;
+}
+
+$ext = normalizeMediaExtension($mime, (string)($file["name"] ?? ""), 'image');
 $nombreFinal = uniqid("img_", true) . "." . $ext;
 $nombreOriginal = sanitizeClientMediaFileName((string)($file["name"] ?? ""), $nombreFinal);
 

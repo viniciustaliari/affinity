@@ -8,7 +8,7 @@ if (!$ctx) die("Falta ctx");
 <main class="px-3">
 
     <div class="bg-gradient-to-r from-cyan-500 to-blue-500 p-4 rounded-2xl
-                grid grid-cols-7 gap-4 h-[80vh] text-sm">
+                grid grid-cols-7 gap-4 h-[80vh] text-sm overflow-y-auto">
 
         <!-- ░ HEADER: INICIO + TÍTULO ░ -->
         <div class="col-span-7 grid grid-cols-7 items-center">
@@ -91,6 +91,21 @@ if (!$ctx) die("Falta ctx");
 
 
 <script>
+const backLink = document.querySelector('.col-span-1 a[href="/"]');
+if (backLink) {
+    backLink.className =
+        'z-20 w-16 h-16 rounded-full border-2 border-white/85 bg-white/25 ' +
+        'flex items-center justify-center text-white hover:bg-orange-500 ' +
+        'hover:border-orange-300 transition shadow-lg';
+    backLink.setAttribute('aria-label', 'Volver atras');
+    backLink.setAttribute('title', 'Volver atras');
+    backLink.innerHTML =
+        '<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"w-9 h-9\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">' +
+        '<path d=\"M19 12H5\"></path>' +
+        '<path d=\"M12 19L5 12L12 5\"></path>' +
+        '</svg>';
+}
+
 const ctx = "<?= $ctx ?>";
 
 // ======================

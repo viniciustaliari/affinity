@@ -6,35 +6,55 @@ require_once './api/db.php';
 $contextos = function_exists('getContextosCanonicos')
     ? getContextosCanonicos()
     : [];
+$contextosServicio = function_exists('getContextosServicioCanonicos')
+    ? getContextosServicioCanonicos()
+    : $contextos;
 
 $programasActivos = [];
+$rowsProgramasEnviados = $database->select("programas_enviados_activos", [
+    "contexto",
+    "program_name",
+    "sent_at"
+], [
+    "ORDER" => ["sent_at" => "DESC"]
+]);
 
-foreach ($contextos as $ctxId => $nombre) {
-    $programasActivos[$nombre] = $database->get("programas", "nombre", ["contexto" => $ctxId]);
+foreach ($rowsProgramasEnviados as $row) {
+    $contextoRaw = trim((string)($row["contexto"] ?? ""));
+    if ($contextoRaw === "") {
+        continue;
+    }
+
+    if (ctype_digit($contextoRaw)) {
+        $ctxId = intval($contextoRaw);
+        $ctxNombre = $contextos[$ctxId] ?? ("Contexto " . $contextoRaw);
+    } else {
+        $ctxNombre = $contextoRaw;
+    }
+
+    $programasActivos[] = [
+        "contexto" => $ctxNombre,
+        "programa" => (string)($row["program_name"] ?? "")
+    ];
 }
 
 // PROMOCIONES ACTIVAS
 $promosActivas = $database->select("promociones", "*", ["estado" => 1]);
 
-// IP del servidor
-$ipLocal = getenv('HOST_IP') ?: getHostByName(getHostName());
-
-// Estado BD
-$estadoBD = $database ? "CONECTADO" : "ERROR";
 ?>
 
 <main class="px-3">
 <div class="bg-gray-300 p-3 rounded-2xl grid grid-cols-7 gap-4 h-[80vh] text-sm">
 
-    <!-- ░ INFORME DETALLADO (3 columnas) ░ -->
+    <!-- INFORME DETALLADO (3 columnas) -->
     <div class="col-span-3 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl 
                 grid grid-cols-3 gap-3 p-3">
 
         <h3 class="col-span-3 text-center font-bold text-lg text-white">
-            Ver informe detallado
+            VER INFORME DETALLADO
         </h3>
 
-        <?php foreach ($contextos as $ctxId => $ctxNombre): ?>
+        <?php foreach ($contextosServicio as $ctxId => $ctxNombre): ?>
         <a href="/pages/informeDetallado.php?ctx=<?= (int)$ctxId ?>"
            class="flex items-center justify-center bg-white p-2 rounded-xl font-semibold hover:bg-orange-500 hover:text-white">
             <?= htmlspecialchars(ucwords($ctxNombre)) ?>
@@ -45,22 +65,22 @@ $estadoBD = $database ? "CONECTADO" : "ERROR";
         <div id="bloqueSemanal"
              class="col-span-3 bg-white rounded-xl flex flex-col items-center justify-center 
                     p-3 gap-1 shadow">
-            <p class="font-semibold text-gray-600 text-sm">ÚLTIMOS 7 DÍAS</p>
-            <p id="totalSemana" class="font-bold text-3xl text-blue-600">-- €</p>
+            <p class="font-semibold text-gray-600 text-sm">&Uacute;LTIMOS 7 D&Iacute;AS</p>
+            <p id="totalSemana" class="font-bold text-3xl text-blue-600">-- &euro;</p>
             <p id="nombreServicio" class="font-semibold text-gray-700 text-sm">---</p>
         </div>
 
     </div>
 
 
-    <!-- ░ TOTAL HOY (2 columnas) ░ -->
+    <!-- TOTAL HOY (2 columnas) -->
     <div class="col-span-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white">
         <h3 class="font-bold text-xl">TOTAL HOY</h3>
 
-        <p id="totalHoy" class="font-bold text-4xl text-center mt-1">-- €</p>
+        <p id="totalHoy" class="font-bold text-4xl text-center mt-1">-- &euro;</p>
 
         <p class="text-center text-sm">
-            Ayer: <span id="totalAyer">-- €</span>
+            Ayer: <span id="totalAyer">-- &euro;</span>
         </p>
 
         <div class="mt-2 bg-white rounded-lg p-2 shadow">
@@ -69,49 +89,40 @@ $estadoBD = $database ? "CONECTADO" : "ERROR";
     </div>
 
 
-    <div class="col-span-2 flex flex-col gap-4">
-        <!-- ░ IP LOCAL (1 columna) ░ -->
-        <div class="col-span-1 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white flex flex-col justify-center">
-            <h3 class="font-bold text-lg">IP LOCAL</h3>
-            <p class="font-bold text-2xl mt-1"><?= $ipLocal ?></p>
-        </div>
-
-
-        <!-- ░ ESTADO BD (1 columna) ░ -->
-        <div class="col-span-1 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white flex flex-col justify-center">
-            <h3 class="font-bold text-lg">ESTADO BD</h3>
-            <p class="font-bold text-2xl mt-1"><?= $estadoBD ?></p>
-        </div>
-
-        <div class="col-span-1 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white flex flex-col justify-center">
-            <h3 class="font-bold text-lg">ESTADO WS</h3>
-            <p id="wsUiStatus" class="font-bold text-xl mt-1">DESCONECTADO</p>
-            <p class="text-sm mt-2">Clientes: <span id="wsClientCount">0</span></p>
-            <p class="text-sm">IP: <span id="wsLastClientIp">---</span></p>
-            <p class="text-sm">Puerto: <span id="wsLastClientPort">---</span></p>
-            <p class="text-sm">Ultimo: <span id="wsLastClient">---</span></p>
+    <div class="col-span-2">
+        <div class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white flex flex-col">
+            <h3 class="font-bold text-lg">BASCULAS CONECTADAS</h3>
+            <div id="wsClientList" class="text-base mt-2 space-y-1 overflow-y-auto pr-1 flex-1 font-semibold">
+                <p class="italic opacity-90">Sin clientes</p>
+            </div>
         </div>
     </div>
 
     
 
+    
 
-    <!-- ░ PROGRAMAS ACTIVOS (4 columnas) ░ -->
+
+    <!-- PROGRAMAS ACTIVOS (4 columnas) -->
     <div class="col-span-4 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white">
-        <h3 class="text-center font-bold text-xl">Programas activos</h3>
+        <h3 class="text-center font-bold text-xl">PROGRAMAS ACTIVOS</h3>
 
         <div class="mt-2 space-y-1 ps-6 text-sm">
-            <?php foreach ($programasActivos as $nombre => $prog): ?>
-                <p class="font-semibold text-lg">
-                    <?= $nombre ?>:
-                    <span class="opacity-90"><?= $prog ? htmlspecialchars($prog) : "Sin programa" ?></span>
-                </p>
-            <?php endforeach; ?>
+            <?php if (!empty($programasActivos)): ?>
+                <?php foreach ($programasActivos as $item): ?>
+                    <p class="font-semibold text-lg">
+                        <?= htmlspecialchars(ucwords((string)$item["contexto"])) ?>:
+                        <span class="opacity-90"><?= htmlspecialchars((string)$item["programa"]) ?></span>
+                    </p>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <p class="font-bold text-lg pt-1">No hay programas activos.</p>
+            <?php endif; ?>
         </div>
     </div>
 
 
-    <!-- ░ PROMOCIONES (3 columnas) ░ -->
+    <!-- PROMOCIONES (3 columnas) -->
     <div class="col-span-3 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl p-3 text-white">
         <h3 class="font-bold text-xl ps-6">PROMOCIONES</h3>
 
@@ -124,7 +135,7 @@ $estadoBD = $database ? "CONECTADO" : "ERROR";
                     </p>
                 <?php endforeach; ?>
             <?php else: ?>
-                <p class="font-bold text-2xl pt-1">Ninguna promoción activa</p>
+                <p class="font-bold text-lg pt-1">Ninguna promoci&oacute;n activa</p>
             <?php endif; ?>
         </div>
     </div>
@@ -135,12 +146,12 @@ $estadoBD = $database ? "CONECTADO" : "ERROR";
 
 
 <!-- ================================ -->
-<!--        SCRIPTS DINÁMICOS         -->
+<!--        SCRIPTS DINAMICOS         -->
 <!-- ================================ -->
 
 <script>
 // ==========================
-// ROTACIÓN SEMANAL (SERVICIOS)
+// ROTACION SEMANAL (SERVICIOS)
 // ==========================
 let datos = [];
 let indexServicio = 0;
@@ -160,20 +171,20 @@ function mostrarServicio() {
 
     const item = datos[indexServicio];
 
-    document.getElementById("totalSemana").innerText = item.total.toFixed(2) + "€";
+    document.getElementById("totalSemana").innerText = item.total.toFixed(2) + "\u20AC";
     document.getElementById("nombreServicio").innerText = item.servicio;
 
     indexServicio = (indexServicio + 1) % datos.length;
 }
 
-// iniciar rotación
+// iniciar rotacion
 setInterval(mostrarServicio, 4000);
 cargarDatos();
 </script>
 
 
 <!-- ========================== -->
-<!--    CHART.js + COMPARACIÓN  -->
+<!--    CHART.js + COMPARACION  -->
 <!-- ========================== -->
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -188,12 +199,12 @@ function cargarComparacionHoyAyer() {
 
             console.log("DATOS API:", d); // esto ya lo viste
 
-            // Convertimos SIEMPRE a número
+            // Convertimos SIEMPRE a numero
             const hoy  = Number(d.hoy)  || 0;
             const ayer = Number(d.ayer) || 0;
 
-            document.getElementById("totalHoy").innerText  = hoy.toFixed(2) + " €";
-            document.getElementById("totalAyer").innerText = ayer.toFixed(2) + " €";
+            document.getElementById("totalHoy").innerText  = hoy.toFixed(2) + " \u20AC";
+            document.getElementById("totalAyer").innerText = ayer.toFixed(2) + " \u20AC";
 
             renderChartHoyAyer(hoy, ayer);
         });
@@ -209,7 +220,7 @@ function renderChartHoyAyer(hoy, ayer) {
         data: {
             labels: ["Ayer", "Hoy"],
             datasets: [{
-                label: "€ generados",
+                label: "\u20AC generados",
                 data: [ayer, hoy],
                 backgroundColor: ["#ff7f50", "#4CAF50"]
             }]
@@ -232,38 +243,26 @@ setInterval(cargarComparacionHoyAyer, 60000);
 let wsUi = null;
 let wsClients = new Map();
 
-function setWsUiStatus(text) {
-    const el = document.getElementById("wsUiStatus");
-    if (el) el.textContent = text;
-}
-
 function renderWsClients() {
-    const countEl = document.getElementById("wsClientCount");
-    const ipEl = document.getElementById("wsLastClientIp");
-    const portEl = document.getElementById("wsLastClientPort");
-    const lastEl = document.getElementById("wsLastClient");
+    const listEl = document.getElementById("wsClientList");
+    if (!listEl) return;
 
-    if (countEl) countEl.textContent = String(wsClients.size);
-
-    if (!lastEl || !ipEl || !portEl) return;
     if (wsClients.size === 0) {
-        ipEl.textContent = "---";
-        portEl.textContent = "---";
-        lastEl.textContent = "---";
+        listEl.innerHTML = '<p class="italic opacity-90 font-normal">Sin clientes</p>';
         return;
     }
 
-    const ordered = Array.from(wsClients.values()).sort((a, b) => {
-        return String(a.connectedAt || "").localeCompare(String(b.connectedAt || ""));
-    });
-    const last = ordered[ordered.length - 1];
-    const ip = last.ip || "unknown";
-    const port = last.port !== null && last.port !== undefined ? String(last.port) : "?";
-    const rawAddress = last.rawAddress ? String(last.rawAddress) : "";
+    const ordered = Array.from(wsClients.values()).sort((a, b) =>
+        String(a.connectedAt || "").localeCompare(String(b.connectedAt || ""))
+    );
 
-    ipEl.textContent = ip;
-    portEl.textContent = port;
-    lastEl.textContent = rawAddress !== "" ? rawAddress : `${ip}:${port}`;
+    const rows = ordered.map((client) => {
+        const ip = client.ip || "unknown";
+        const port = client.port !== null && client.port !== undefined ? String(client.port) : "?";
+        return `<p class="text-lg leading-tight">${ip}:${port}</p>`;
+    });
+
+    listEl.innerHTML = rows.join("");
 }
 
 function applySnapshot(clients) {
@@ -316,11 +315,9 @@ function connectWsUi() {
     const proto = window.location.protocol === "https:" ? "wss" : "ws";
     const url = `${proto}://${window.location.hostname}:8090?role=ui`;
 
-    setWsUiStatus("CONECTANDO...");
     wsUi = new WebSocket(url);
 
     wsUi.onopen = () => {
-        setWsUiStatus("CONECTADO");
         wsUi.send(JSON.stringify({ type: "get_clients" }));
     };
 
@@ -329,11 +326,13 @@ function connectWsUi() {
     };
 
     wsUi.onerror = () => {
-        setWsUiStatus("ERROR");
+        wsClients = new Map();
+        renderWsClients();
     };
 
     wsUi.onclose = () => {
-        setWsUiStatus("DESCONECTADO");
+        wsClients = new Map();
+        renderWsClients();
         setTimeout(connectWsUi, 3000);
     };
 }

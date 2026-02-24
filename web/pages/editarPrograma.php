@@ -251,7 +251,7 @@ usort($timeline, fn($a, $b) => ($a['indice'] ?? 0) <=> ($b['indice'] ?? 0));
     <div class="modal">
         <h2 class="text-xl font-bold mb-3">Añadir imagen</h2>
 
-        <input type="file" id="nuevaImagenFile" accept="image/*" class="w-full mb-3">
+        <input type="file" id="nuevaImagenFile" accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,.svg,image/jpeg,image/png,image/webp,image/gif,image/bmp,image/svg+xml" class="w-full mb-3">
 
         <label class="font-bold">Duración (segundos):</label>
         <input type="number" id="nuevaImagenDur" class="w-full p-2 border rounded mb-3" min="0.1" step="0.1">
@@ -331,7 +331,7 @@ usort($timeline, fn($a, $b) => ($a['indice'] ?? 0) <=> ($b['indice'] ?? 0));
     <div class="modal">
         <h2 class="text-xl font-bold mb-3">Añadir video</h2>
 
-        <input type="file" id="nuevoVideoFile" accept="video/*" class="w-full mb-3">
+        <input type="file" id="nuevoVideoFile" accept=".mp4,.webm,.mov,.avi,.mkv,.ogv,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/ogg" class="w-full mb-3">
 
         <label class="font-bold">Duración (segundos):</label>
         <input type="number" id="nuevoVideoDur" class="w-full p-2 border rounded mb-3" min="0.1" step="0.1">
@@ -516,6 +516,50 @@ function guardarTexto() {
     .then(d => d.status === "ok" ? location.reload() : alert("Error: " + (d.msg ?? d.mensaje ?? "error")));
 }
 
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif", "bmp", "svg"]);
+const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov", "avi", "mkv", "ogv"]);
+
+function getFileExt(fileName) {
+    const n = String(fileName || "");
+    const i = n.lastIndexOf(".");
+    if (i < 0) return "";
+    return n.slice(i + 1).toLowerCase();
+}
+
+function isValidImageFile(file) {
+    const mime = String((file && file.type) || "").toLowerCase();
+    if (mime.startsWith("image/")) return true;
+    return IMAGE_EXTENSIONS.has(getFileExt(file && file.name));
+}
+
+function isValidVideoFile(file) {
+    const mime = String((file && file.type) || "").toLowerCase();
+    if (mime.startsWith("video/")) return true;
+    return VIDEO_EXTENSIONS.has(getFileExt(file && file.name));
+}
+
+const nuevaImagenInput = document.getElementById("nuevaImagenFile");
+if (nuevaImagenInput) {
+    nuevaImagenInput.addEventListener("change", () => {
+        const f = nuevaImagenInput.files && nuevaImagenInput.files[0];
+        if (f && !isValidImageFile(f)) {
+            alert("Solo se permiten imágenes en esta opción.");
+            nuevaImagenInput.value = "";
+        }
+    });
+}
+
+const nuevoVideoInput = document.getElementById("nuevoVideoFile");
+if (nuevoVideoInput) {
+    nuevoVideoInput.addEventListener("change", () => {
+        const f = nuevoVideoInput.files && nuevoVideoInput.files[0];
+        if (f && !isValidVideoFile(f)) {
+            alert("Solo se permiten videos en esta opción.");
+            nuevoVideoInput.value = "";
+        }
+    });
+}
+
 /* Nueva imagen */
 function guardarNuevaImagen() {
     const file = document.getElementById("nuevaImagenFile").files[0];
@@ -525,6 +569,10 @@ function guardarNuevaImagen() {
     const transition = document.getElementById("nuevaImagenTransition").value;
 
     if (!file) { alert("Selecciona una imagen"); return; }
+    if (!isValidImageFile(file)) {
+        alert("El archivo seleccionado no es una imagen válida.");
+        return;
+    }
 
     const fd = new FormData();
     fd.append("id_programa", "<?= (int)$id_programa ?>");
@@ -580,6 +628,10 @@ function guardarNuevoVideo() {
     const mute = document.getElementById("nuevoVideoMute").checked ? 1 : 0;
 
     if (!file) { alert("Selecciona un video"); return; }
+    if (!isValidVideoFile(file)) {
+        alert("El archivo seleccionado no es un video válido.");
+        return;
+    }
 
     const fd = new FormData();
     fd.append("id_programa", "<?= (int)$id_programa ?>");
